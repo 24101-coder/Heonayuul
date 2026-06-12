@@ -4,61 +4,232 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>월드컵 피파랭킹 및 성적 예측기</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background-color: #f4f6f9; margin: 0; }
+    h1 { font-size: 24px; }
+
+    .card {
+      max-width: 420px;
+      margin: 30px auto;
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .tab-btns { display: flex; margin-bottom: 24px; border-bottom: 2px solid #eee; }
+    .tab-btn {
+      flex: 1; padding: 10px; border: none; background: none;
+      font-size: 15px; cursor: pointer; color: #888; font-weight: bold;
+      border-bottom: 3px solid transparent; margin-bottom: -2px;
+    }
+    .tab-btn.active { color: #4285F4; border-bottom-color: #4285F4; }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    input[type="text"], input[type="email"], input[type="password"] {
+      width: 100%; padding: 11px 14px; font-size: 15px;
+      border: 1px solid #ccc; border-radius: 6px; margin-bottom: 12px;
+    }
+    input:focus { outline: none; border-color: #4285F4; }
+
+    .btn-primary {
+      width: 100%; padding: 12px; font-size: 15px; font-weight: bold;
+      background-color: #4285F4; color: white;
+      border: none; border-radius: 6px; cursor: pointer; margin-top: 4px;
+    }
+    .btn-primary:hover { background-color: #3367d6; }
+    .btn-primary.green { background-color: #28a745; }
+    .btn-primary.green:hover { background-color: #218838; }
+    .btn-sm {
+      padding: 6px 14px; font-size: 13px; background: #6c757d;
+      color: white; border: none; border-radius: 4px; cursor: pointer;
+    }
+
+    #msg-login, #msg-signup { font-size: 13px; margin-top: 10px; min-height: 18px; }
+    .err { color: #dc3545; }
+    .ok  { color: #28a745; }
+
+    #result {
+      padding: 18px; background: #f8f9fa;
+      border: 1px solid #eee; border-radius: 6px;
+      min-height: 60px; font-size: 15px; line-height: 1.7;
+      color: #444; text-align: left; margin-top: 12px;
+    }
+    #predict-row { display: flex; gap: 8px; margin: 16px 0; }
+    #predict-row input { margin-bottom: 0; }
+    #predict-row button { white-space: nowrap; padding: 11px 16px; }
+  </style>
+</head>
+<body>
+
+  <h1>🏆 월드컵 피파랭킹 및 성적 예측기 ⚽</h1>
+  <p style="color:#666; margin-top:-8px;">수행평가 제출용 프로그램 (인증/구조화 데이터 연동/TTS)</p>
+  <hr style="border:1px solid #ddd; max-width:500px;">
+
+  <!-- 로그인/회원가입 카드 -->
+  <div id="auth-section" class="card">
+    <div class="tab-btns">
+      <button class="tab-btn active" id="tab-login-btn">로그인</button>
+      <button class="tab-btn" id="tab-signup-btn">회원가입</button>
+    </div>
+
+    <!-- 로그인 탭 -->
+    <div class="tab-panel active" id="tab-login">
+      <input type="email" id="login-email" placeholder="이메일" />
+      <input type="password" id="login-pw" placeholder="비밀번호" />
+      <button class="btn-primary" id="login-btn">로그인</button>
+      <div id="msg-login"></div>
+    </div>
+
+    <!-- 회원가입 탭 -->
+    <div class="tab-panel" id="tab-signup">
+      <input type="text"  id="signup-name"  placeholder="이름 (닉네임)" />
+      <input type="email" id="signup-email" placeholder="이메일" />
+      <input type="password" id="signup-pw" placeholder="비밀번호 (6자 이상)" />
+      <button class="btn-primary" id="signup-btn">회원가입</button>
+      <div id="msg-signup"></div>
+    </div>
+  </div>
+
+  <!-- 메인(예측) 카드 -->
+  <div id="main-section" class="card" style="display:none;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <span id="user-name" style="font-weight:bold; color:#333;"></span>
+      <button class="btn-sm" id="logout-btn">로그아웃</button>
+    </div>
+
+    <div id="predict-row">
+      <input type="text" id="country-input" placeholder="예: 대한민국, 프랑스, 브라질" />
+      <button class="btn-primary green" id="predict-btn">조회 및 예측</button>
+    </div>
+
+    <h3 style="text-align:left; color:#222; margin-bottom:6px;">📊 분석 결과</h3>
+    <div id="result">국가명을 입력하고 버튼을 누르면 피파랭킹과 성적 예측 결과를 음성(TTS)으로 들려줍니다.</div>
+  </div>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-    import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { initializeApp }       from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import {
+      getAuth,
+      createUserWithEmailAndPassword,
+      signInWithEmailAndPassword,
+      signOut,
+      onAuthStateChanged,
+      updateProfile
+    } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getDatabase, ref, set, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    // ⚠️ [중요] 아래 firebaseConfig의 apiKey를 파이어베이스 콘솔에서 복사한 '진짜 키'로 꼭 교체해 주세요!
     const firebaseConfig = {
-      apiKey: "AIzaSyCMzm2JfY6jhh3HHa0N3hOw-tRVLjVSN6U", 
+      apiKey: "AIzaSyCMzm2JfY6jhh3HHa0N3hOw-tRVLjVSN6U",
       authDomain: "worldcup-ai-predictor.firebaseapp.com",
       databaseURL: "https://worldcup-ai-predictor-default-rtdb.firebaseio.com",
       projectId: "worldcup-ai-predictor",
-      storageBucket: "worldcup-ai-predictor.appspot.com",
+      storageBucket: "worldcup-ai-predictor.firebasestorage.app",
       messagingSenderId: "884291464852",
-      appId: "1:884291464852:web:baded9580cf530e3af0e81"
+      appId: "1:884291464852:web:baded9580cf530e3af0e81",
+      measurementId: "G-5CJ7G2Y6SM"
     };
 
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyKZZxH72Ry7-oCB2Lzv7KrNsVf8aVHOy72Fob6_BtHUlvKSyitcXGhPam85QQhVYJHug/exec';
 
-    const app = initializeApp(firebaseConfig);
+    const app  = initializeApp(firebaseConfig);
     const auth = getAuth(app);
-    const db = getDatabase(app);
-    const provider = new GoogleAuthProvider();
-
-    // 리디렉션 로그인 후 돌아왔을 때 결과를 처리하는 코드
-    getRedirectResult(auth).catch(err => {
-      if(err.code !== 'auth/redirect-cancelled-by-user') {
-        alert("로그인 처리 중 오류: " + err.message);
-      }
-    });
+    const db   = getDatabase(app);
 
     let currentUser = null;
 
+    // ── 탭 전환 ──────────────────────────────────────
+    document.getElementById('tab-login-btn').addEventListener('click', () => switchTab('login'));
+    document.getElementById('tab-signup-btn').addEventListener('click', () => switchTab('signup'));
+
+    function switchTab(tab) {
+      ['login','signup'].forEach(t => {
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+        document.getElementById(`tab-${t}-btn`).classList.toggle('active', t === tab);
+      });
+    }
+
+    // ── 회원가입 ──────────────────────────────────────
+    document.getElementById('signup-btn').addEventListener('click', async () => {
+      const name  = document.getElementById('signup-name').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const pw    = document.getElementById('signup-pw').value;
+      const msg   = document.getElementById('msg-signup');
+
+      if (!name || !email || !pw) { msg.className='err'; msg.innerText='모든 항목을 입력하세요.'; return; }
+      if (pw.length < 6)          { msg.className='err'; msg.innerText='비밀번호는 6자 이상이어야 합니다.'; return; }
+
+      try {
+        msg.className=''; msg.innerText='처리 중...';
+        const cred = await createUserWithEmailAndPassword(auth, email, pw);
+
+        // Auth 프로필에 이름 저장
+        await updateProfile(cred.user, { displayName: name });
+
+        // Realtime DB에 유저 정보 저장
+        await set(ref(db, 'users/' + cred.user.uid), {
+          name:      name,
+          email:     email,
+          createdAt: new Date().toISOString()
+        });
+
+        msg.className='ok'; msg.innerText='회원가입 성공! 자동으로 로그인됩니다.';
+      } catch(err) {
+        msg.className='err';
+        msg.innerText = firebaseErrMsg(err.code);
+      }
+    });
+
+    // ── 로그인 ──────────────────────────────────────
+    document.getElementById('login-btn').addEventListener('click', async () => {
+      const email = document.getElementById('login-email').value.trim();
+      const pw    = document.getElementById('login-pw').value;
+      const msg   = document.getElementById('msg-login');
+
+      if (!email || !pw) { msg.className='err'; msg.innerText='이메일과 비밀번호를 입력하세요.'; return; }
+
+      try {
+        msg.className=''; msg.innerText='로그인 중...';
+        await signInWithEmailAndPassword(auth, email, pw);
+      } catch(err) {
+        msg.className='err';
+        msg.innerText = firebaseErrMsg(err.code);
+      }
+    });
+
+    // 엔터키 지원
+    document.getElementById('login-pw').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('login-btn').click(); });
+    document.getElementById('signup-pw').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('signup-btn').click(); });
+
+    // ── 로그아웃 ──────────────────────────────────────
+    document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+
+    // ── 인증 상태 감지 ──────────────────────────────────────
     onAuthStateChanged(auth, (user) => {
       if (user) {
         currentUser = user;
-        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('auth-section').style.display = 'none';
         document.getElementById('main-section').style.display = 'block';
-        document.getElementById('user-name').innerText = "⚽ " + user.displayName + "님 환영합니다!";
+        document.getElementById('user-name').innerText = '⚽ ' + (user.displayName || user.email) + '님 환영합니다!';
       } else {
         currentUser = null;
-        document.getElementById('login-section').style.display = 'block';
+        document.getElementById('auth-section').style.display = 'block';
         document.getElementById('main-section').style.display = 'none';
       }
     });
 
-    // 팝업 대신 리디렉션 방식으로 로그인 실행 (학교 컴퓨터/브라우저 차단 우회)
-    window.login = () => signInWithRedirect(auth, provider).catch(err => alert("로그인 실패: " + err.message));
-    window.logout = () => signOut(auth);
+    // ── 예측 ──────────────────────────────────────
+    document.getElementById('predict-btn').addEventListener('click', predictWorldCup);
+    document.getElementById('country-input').addEventListener('keydown', e => { if(e.key==='Enter') predictWorldCup(); });
 
-    window.predictWorldCup = () => {
+    function predictWorldCup() {
       const country = document.getElementById('country-input').value.trim();
-      if (!country) return alert("국가를 입력하세요!");
+      if (!country) return alert('국가를 입력하세요!');
 
-      document.getElementById('result').innerText = "데이터를 분석하고 있습니다...";
+      document.getElementById('result').innerText = '데이터를 분석하고 있습니다...';
 
       fetch(`${APPS_SCRIPT_URL}?country=${encodeURIComponent(country)}`)
         .then(res => res.text())
@@ -72,53 +243,32 @@
 
           if (currentUser) {
             push(ref(db, 'searches/' + currentUser.uid), {
-              userName: currentUser.displayName,
-              country: country,
-              result: responseText,
+              userName:  currentUser.displayName || currentUser.email,
+              country:   country,
+              result:    responseText,
               timestamp: new Date().toISOString()
             });
           }
         })
         .catch(err => {
-          document.getElementById('result').innerText = "오류가 발생했습니다: " + err.message;
+          document.getElementById('result').innerText = '오류가 발생했습니다: ' + err.message;
         });
-    };
+    }
+
+    // ── Firebase 오류 메시지 한국어 변환 ──────────────────────────────────────
+    function firebaseErrMsg(code) {
+      const map = {
+        'auth/email-already-in-use':    '이미 사용 중인 이메일입니다.',
+        'auth/invalid-email':           '이메일 형식이 올바르지 않습니다.',
+        'auth/weak-password':           '비밀번호가 너무 짧습니다. (6자 이상)',
+        'auth/user-not-found':          '등록된 계정이 없습니다.',
+        'auth/wrong-password':          '비밀번호가 틀렸습니다.',
+        'auth/invalid-credential':      '이메일 또는 비밀번호가 올바르지 않습니다.',
+        'auth/too-many-requests':       '요청이 너무 많습니다. 잠시 후 다시 시도하세요.',
+      };
+      return map[code] || '오류가 발생했습니다. (' + code + ')';
+    }
   </script>
-</head>
-<body style="font-family: Arial, sans-serif; padding: 20px; text-align: center; background-color: #f4f6f9;">
-
-  <h1>🏆 월드컵 피파랭킹 및 성적 예측기 ⚽</h1>
-  <p style="color: #666;">수행평가 제출용 프로그램 (인증/구조화 데이터 연동/TTS)</p>
-  <hr style="border: 1px solid #ddd; max-width: 600px;">
-
-  <div id="login-section" style="margin-top: 50px;">
-    <p>서비스를 이용하려면 구글 로그인이 필요합니다.</p>
-    <button onclick="login()" style="padding: 12px 24px; font-size: 16px; cursor: pointer; background-color: #4285F4; color: white; border: none; border-radius: 5px; font-weight: bold;">
-      구글 계정으로 로그인
-    </button>
-  </div>
-
-  <div id="main-section" style="display:none; max-width: 600px; margin: 30px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
-    <h3 id="user-name" style="color: #333;"></h3>
-    <button onclick="logout()" style="padding: 6px 12px; background:#6c757d; color:white; border:none; border-radius:4px; cursor:pointer; font-size: 13px;">로그아웃</button>
-    <br><br>
-
-    <div style="margin: 20px 0;">
-      <input type="text" id="country-input" placeholder="예: 대한민국, 프랑스, 브라질"
-        style="padding: 12px; font-size: 16px; width: 250px; border: 1px solid #ccc; border-radius: 4px;"
-        onkeydown="if(event.key==='Enter') predictWorldCup()">
-      <button onclick="predictWorldCup()"
-        style="padding: 12px 20px; font-size: 16px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 6px;">
-        조회 및 예측
-      </button>
-    </div>
-
-    <h3 style="margin-top: 40px; text-align: left; color: #222;">📊 분석 결과</h3>
-    <div id="result"
-      style="padding:20px; background:#f8f9fa; border: 1px solid #eee; border-radius:6px; min-height:60px; font-size: 16px; line-height: 1.6; color: #444; text-align: left;">
-      국가명을 입력하고 버튼을 누르면 피파랭킹과 성적 예측 결과를 음성(TTS)으로 들려줍니다.
-    </div>
-  </div>
 
 </body>
 </html>
