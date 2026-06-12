@@ -7,11 +7,12 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getAuth, signInWithRedirect, getRedirectResult, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getDatabase, ref, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+    // ⚠️ [중요] 아래 firebaseConfig의 apiKey를 파이어베이스 콘솔에서 복사한 '진짜 키'로 꼭 교체해 주세요!
     const firebaseConfig = {
-      apiKey: "AIzaSyCMzm2JFY6jhh3HHa0N3hOw-tRVLjVSN6U",
+      apiKey: "AIzaSyCMzm2JFY6jhh3HHa0N3hOw-tRVLjVSN6U", 
       authDomain: "worldcup-ai-predictor.firebaseapp.com",
       databaseURL: "https://worldcup-ai-predictor-default-rtdb.firebaseio.com",
       projectId: "worldcup-ai-predictor",
@@ -26,6 +27,13 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
     const provider = new GoogleAuthProvider();
+
+    // 리디렉션 로그인 후 돌아왔을 때 결과를 처리하는 코드
+    getRedirectResult(auth).catch(err => {
+      if(err.code !== 'auth/redirect-cancelled-by-user') {
+        alert("로그인 처리 중 오류: " + err.message);
+      }
+    });
 
     let currentUser = null;
 
@@ -42,7 +50,8 @@
       }
     });
 
-    window.login = () => signInWithPopup(auth, provider).catch(err => alert("로그인 실패: " + err.message));
+    // 팝업 대신 리디렉션 방식으로 로그인 실행 (학교 컴퓨터/브라우저 차단 우회)
+    window.login = () => signInWithRedirect(auth, provider).catch(err => alert("로그인 실패: " + err.message));
     window.logout = () => signOut(auth);
 
     window.predictWorldCup = () => {
